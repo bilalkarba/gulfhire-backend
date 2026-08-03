@@ -45,9 +45,15 @@ public class Worker {
 
     private String profilePictureUrl;
 
+    private String profilePicturePublicId;
+
     private String cvUrl;
 
+    private String cvPublicId;
+
     private String videoCvUrl;
+
+    private String videoCvPublicId;
 
     @Column(nullable = false)
     @Builder.Default

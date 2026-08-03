@@ -85,6 +85,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Cloudinary (File Upload) -->
+        <dependency>
+            <groupId>com.cloudinary</groupId>
+            <artifactId>cloudinary-http44</artifactId>
+            <version>1.39.0</version>
+        </dependency>
+
         <!-- DevTools -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
