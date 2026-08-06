@@ -151,7 +151,7 @@ public class UploadController {
                 Worker::getCvPublicId,
                 Worker::setCvUrl,
                 Worker::setCvPublicId,
-                CloudinaryService::deleteRawFile,
+                CloudinaryService::deleteCv,
                 "CV"),
         VIDEO_CV(
                 VIDEO_CV_FOLDER,

@@ -10,7 +10,6 @@ public final class FileTypeUtils {
     public static final List<String> VIDEO_EXTENSIONS = List.of("mp4", "mov", "avi");
 
     private static final String RESOURCE_TYPE_IMAGE = "image";
-    private static final String RESOURCE_TYPE_RAW = "raw";
     private static final String RESOURCE_TYPE_VIDEO = "video";
     private static final String RESOURCE_TYPE_AUTO = "auto";
 
@@ -19,7 +18,10 @@ public final class FileTypeUtils {
             "jpeg", RESOURCE_TYPE_IMAGE,
             "png", RESOURCE_TYPE_IMAGE,
             "webp", RESOURCE_TYPE_IMAGE,
-            "pdf", RESOURCE_TYPE_RAW,
+            // PDFs are uploaded with the image resource type (Cloudinary's recommended
+            // approach) so the delivery URL can serve the original PDF inline with
+            // Content-Type: application/pdf while keeping the .pdf extension.
+            "pdf", RESOURCE_TYPE_IMAGE,
             "mp4", RESOURCE_TYPE_VIDEO,
             "mov", RESOURCE_TYPE_VIDEO,
             "avi", RESOURCE_TYPE_VIDEO

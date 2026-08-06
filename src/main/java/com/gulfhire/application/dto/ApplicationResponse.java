@@ -18,6 +18,8 @@ public class ApplicationResponse {
     private UUID id;
     private UUID workerId;
     private String workerName;
+    private String profilePictureUrl;
+    private String cvUrl;
     private UUID jobId;
     private String jobTitle;
     private String companyName;

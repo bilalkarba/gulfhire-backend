@@ -12,6 +12,8 @@ public class JobApplicationMapper {
                 .id(application.getId())
                 .workerId(application.getWorker().getId())
                 .workerName(application.getWorker().getUser().getFullName())
+                .profilePictureUrl(application.getWorker().getProfilePictureUrl())
+                .cvUrl(application.getWorker().getCvUrl())
                 .jobId(application.getJob().getId())
                 .jobTitle(application.getJob().getTitle())
                 .companyName(application.getJob().getCompany().getCompanyName())

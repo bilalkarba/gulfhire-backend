@@ -1,5 +1,6 @@
 package com.gulfhire.application.repository;
 
+import com.gulfhire.application.entity.ApplicationStatus;
 import com.gulfhire.application.entity.JobApplication;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -18,6 +19,9 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication, 
     List<JobApplication> findByJobCompanyId(UUID companyId);
 
     boolean existsByWorkerIdAndJobId(UUID workerId, UUID jobId);
+
+    /** Chat business rule: only ACCEPTED applications unlock a conversation. */
+    boolean existsByWorkerIdAndJobIdAndStatus(UUID workerId, UUID jobId, ApplicationStatus status);
 
     @Override
     @EntityGraph(attributePaths = {"worker.user", "job.company"})
