@@ -3,7 +3,7 @@ package com.gulfhire.chat.dto;
 import lombok.Builder;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.UUID;
 
 @Data
@@ -20,7 +20,9 @@ public class ConversationResponse {
     private UUID jobId;
     private String jobTitle;
     private String lastMessage;
-    private LocalDateTime lastMessageAt;
+    /** UTC instant of the last message (ISO-8601 with Z). */
+    private Instant lastMessageAt;
     private long unreadCount;
-    private LocalDateTime createdAt;
+    /** UTC instant the conversation was created (ISO-8601 with Z). */
+    private Instant createdAt;
 }

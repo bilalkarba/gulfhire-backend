@@ -11,6 +11,8 @@ import com.gulfhire.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,8 +65,11 @@ public class JobController {
 
    @GetMapping
 @PreAuthorize("isAuthenticated()")
-public ResponseEntity<List<JobResponse>> getAllJobs() {
-    return ResponseEntity.ok(jobService.getAllJobs());
+public ResponseEntity<Page<JobResponse>> getAllJobs(
+        @RequestParam(required = false) String search,
+        @RequestParam(required = false) String country,
+        Pageable pageable) {
+    return ResponseEntity.ok(jobService.getPublicJobs(search, country, pageable));
 }
 
 @GetMapping("/{id}")

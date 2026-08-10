@@ -5,6 +5,7 @@ import com.gulfhire.security.jwt.JwtService;
 import com.gulfhire.user.entity.User;
 import com.gulfhire.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageChannel;
 import org.springframework.messaging.simp.stomp.StompCommand;
@@ -28,6 +29,7 @@ import java.util.UUID;
  */
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
     private final JwtService jwtService;
@@ -67,27 +69,50 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
         // The principal (user id) rides on the CONNECT frame; the presence
         // listener picks it up from the SessionConnectedEvent that follows.
         accessor.setUser(new StompPrincipal(user.getId().toString()));
+        log.info("CONNECT userId={} sessionId={}", user.getId(), accessor.getSessionId());
     }
 
     private void handleSubscribe(StompHeaderAccessor accessor) {
-        UUID conversationId = parseDestinationId(accessor.getDestination());
-        if (conversationId == null) {
+        String destination = accessor.getDestination();
+        if (destination == null) {
             return;
         }
         UUID userId = currentUserId(accessor);
-        if (userId == null || !conversationRepository.existsParticipant(conversationId, userId)) {
-            throw new AccessDeniedException("You are not a participant of this conversation");
+
+        // Per-user notification stream: /topic/notifications/{userId}.
+        UUID notificationsUserId = parseDestinationId(destination, "notifications");
+        if (notificationsUserId != null) {
+            if (userId == null || !notificationsUserId.equals(userId)) {
+                throw new AccessDeniedException("You can only subscribe to your own notifications");
+            }
+            return;
+        }
+
+        // Global presence feed: /topic/presence — any authenticated user may subscribe.
+        if (destination.equals("/topic/presence")) {
+            if (userId == null) {
+                throw new AccessDeniedException("Authentication required to subscribe to presence");
+            }
+            return;
+        }
+
+        // Conversation topics are per-conversation: only participants may subscribe.
+        UUID conversationId = parseDestinationId(destination, "conversation");
+        if (conversationId != null) {
+            if (userId == null || !conversationRepository.existsParticipant(conversationId, userId)) {
+                throw new AccessDeniedException("You are not a participant of this conversation");
+            }
         }
     }
 
-    /** Extracts a conversation id from /topic/conversation/{id} or /topic/presence/{id}. */
-    private UUID parseDestinationId(String destination) {
+    /** Extracts a resource id from /topic/{segment}/{id} destinations (conversation, presence, notifications). */
+    private UUID parseDestinationId(String destination, String segment) {
         if (destination == null) {
             return null;
         }
         String[] parts = destination.split("/");
         for (int i = 0; i < parts.length - 1; i++) {
-            if (parts[i].equals("conversation") || parts[i].equals("presence")) {
+            if (parts[i].equals(segment)) {
                 try {
                     return UUID.fromString(parts[i + 1]);
                 } catch (IllegalArgumentException ignored) {

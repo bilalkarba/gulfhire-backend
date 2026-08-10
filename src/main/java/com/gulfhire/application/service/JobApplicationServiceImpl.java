@@ -7,17 +7,24 @@ import com.gulfhire.application.entity.ApplicationStatus;
 import com.gulfhire.application.entity.JobApplication;
 import com.gulfhire.application.mapper.JobApplicationMapper;
 import com.gulfhire.application.repository.JobApplicationRepository;
+import com.gulfhire.email.service.EmailService;
 import com.gulfhire.job.entity.Job;
 import com.gulfhire.job.repository.JobRepository;
+import com.gulfhire.notification.entity.NotificationType;
+import com.gulfhire.notification.service.NotificationService;
 import com.gulfhire.worker.entity.Worker;
 import com.gulfhire.worker.repository.WorkerRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -29,6 +36,8 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     private final JobRepository jobRepository;
     private final WorkerRepository workerRepository;
     private final JobApplicationMapper jobApplicationMapper;
+    private final NotificationService notificationService;
+    private final EmailService emailService;
 
     @Override
     public ApplicationResponse applyToJob(UUID jobId, UUID userId, ApplicationRequest request) {
@@ -55,11 +64,22 @@ public class JobApplicationServiceImpl implements JobApplicationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ApplicationResponse> getMyApplications(UUID userId) {
+    public Page<ApplicationResponse> getMyApplications(UUID userId, Pageable pageable) {
         Worker worker = getWorkerByUserId(userId);
-        return jobApplicationRepository.findByWorkerId(worker.getId()).stream()
-                .map(jobApplicationMapper::toApplicationResponse)
-                .toList();
+        return jobApplicationRepository.findByWorkerId(worker.getId(), pageable)
+                .map(jobApplicationMapper::toApplicationResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<ApplicationStatus, Long> getMyApplicationStats(UUID userId) {
+        Worker worker = getWorkerByUserId(userId);
+        UUID workerId = worker.getId();
+        Map<ApplicationStatus, Long> stats = new EnumMap<>(ApplicationStatus.class);
+        for (ApplicationStatus status : ApplicationStatus.values()) {
+            stats.put(status, jobApplicationRepository.countByWorkerIdAndStatus(workerId, status));
+        }
+        return stats;
     }
 
     @Override
@@ -79,9 +99,47 @@ public class JobApplicationServiceImpl implements JobApplicationService {
     @Override
     public ApplicationResponse updateApplicationStatus(UUID applicationId, UUID companyId, UpdateApplicationStatusRequest request) {
         JobApplication application = getApplicationForCompany(applicationId, companyId);
-        application.setStatus(request.getStatus());
+        ApplicationStatus previousStatus = application.getStatus();
+        ApplicationStatus newStatus = request.getStatus();
+
+        application.setStatus(newStatus);
         application = jobApplicationRepository.save(application);
+
+        // Notify the worker only on an actual transition to a final decision.
+        if (newStatus != previousStatus) {
+            if (newStatus == ApplicationStatus.ACCEPTED) {
+                notifyWorker(application, NotificationType.APPLICATION_ACCEPTED,
+                        "Application accepted",
+                        "Congratulations! Your application for \"" + application.getJob().getTitle()
+                                + "\" has been accepted.");
+                emailService.sendApplicationAcceptedEmail(
+                        application.getWorker().getUser().getEmail(),
+                        application.getWorker().getUser().getFullName(),
+                        application.getJob().getTitle(),
+                        companyName(application));
+            } else if (newStatus == ApplicationStatus.REJECTED) {
+                notifyWorker(application, NotificationType.APPLICATION_REJECTED,
+                        "Application update",
+                        "Unfortunately, your application for \"" + application.getJob().getTitle()
+                                + "\" was not accepted this time.");
+                emailService.sendApplicationRejectedEmail(
+                        application.getWorker().getUser().getEmail(),
+                        application.getWorker().getUser().getFullName(),
+                        application.getJob().getTitle(),
+                        companyName(application));
+            }
+        }
+
         return jobApplicationMapper.toApplicationResponse(application);
+    }
+
+    private String companyName(JobApplication application) {
+        com.gulfhire.company.entity.Company company = application.getJob().getCompany();
+        return company != null && company.getCompanyName() != null ? company.getCompanyName() : "the company";
+    }
+
+    private void notifyWorker(JobApplication application, NotificationType type, String title, String message) {
+        notificationService.createNotification(application.getWorker().getUser(), title, message, type);
     }
 
     private Worker getWorkerByUserId(UUID userId) {

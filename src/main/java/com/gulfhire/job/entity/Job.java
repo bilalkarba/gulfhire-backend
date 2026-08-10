@@ -54,6 +54,9 @@ public class Job {
     @Builder.Default
     private Boolean active = true;
 
+    /** When the posting stops accepting applications; defaults to 30 days after creation. */
+    private LocalDateTime expiresAt;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -61,4 +64,11 @@ public class Job {
     @UpdateTimestamp
     @Column(nullable = false)
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        if (this.expiresAt == null) {
+            this.expiresAt = LocalDateTime.now().plusDays(30);
+        }
+    }
 }

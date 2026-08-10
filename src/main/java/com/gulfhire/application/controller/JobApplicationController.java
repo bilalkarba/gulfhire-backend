@@ -3,6 +3,7 @@ package com.gulfhire.application.controller;
 import com.gulfhire.application.dto.ApplicationRequest;
 import com.gulfhire.application.dto.ApplicationResponse;
 import com.gulfhire.application.dto.UpdateApplicationStatusRequest;
+import com.gulfhire.application.entity.ApplicationStatus;
 import com.gulfhire.application.service.JobApplicationService;
 import com.gulfhire.common.constants.Role;
 import com.gulfhire.company.repository.CompanyRepository;
@@ -11,6 +12,8 @@ import com.gulfhire.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,6 +22,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -43,10 +47,20 @@ public class JobApplicationController {
 
     @GetMapping("/applications/my")
     @PreAuthorize("hasAnyRole('WORKER', 'ADMIN')")
-    public ResponseEntity<List<ApplicationResponse>> getMyApplications(
+    public ResponseEntity<Page<ApplicationResponse>> getMyApplications(
+            @AuthenticationPrincipal UserDetails userDetails,
+            Pageable pageable) {
+        User user = getCurrentUser(userDetails);
+        return ResponseEntity.ok(jobApplicationService.getMyApplications(user.getId(), pageable));
+    }
+
+    /** Per-status counts for the current worker's applications (summary cards). */
+    @GetMapping("/applications/my/stats")
+    @PreAuthorize("hasAnyRole('WORKER', 'ADMIN')")
+    public ResponseEntity<Map<ApplicationStatus, Long>> getMyApplicationStats(
             @AuthenticationPrincipal UserDetails userDetails) {
         User user = getCurrentUser(userDetails);
-        return ResponseEntity.ok(jobApplicationService.getMyApplications(user.getId()));
+        return ResponseEntity.ok(jobApplicationService.getMyApplicationStats(user.getId()));
     }
 
     @GetMapping("/companies/applications")

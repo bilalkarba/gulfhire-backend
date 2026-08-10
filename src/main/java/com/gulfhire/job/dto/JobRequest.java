@@ -42,4 +42,7 @@ public class JobRequest {
     @NotNull(message = "Required experience is required")
     @Positive(message = "Required experience must be positive")
     private Integer requiredExperience;
+
+    /** Optional; when omitted the job expires 30 days after posting. */
+    private java.time.LocalDateTime expiresAt;
 }

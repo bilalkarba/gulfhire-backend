@@ -2,6 +2,7 @@ package com.gulfhire.job.service;
 
 import com.gulfhire.company.entity.Company;
 import com.gulfhire.company.repository.CompanyRepository;
+import com.gulfhire.job.dto.JobCountryCount;
 import com.gulfhire.job.dto.JobRequest;
 import com.gulfhire.job.dto.JobResponse;
 import com.gulfhire.job.dto.JobUpdateRequest;
@@ -10,6 +11,10 @@ import com.gulfhire.job.mapper.JobMapper;
 import com.gulfhire.job.repository.JobRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -65,21 +70,64 @@ public class JobServiceImpl implements JobService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<JobResponse> getAllJobs() {
-        // Only active jobs are visible on the public job board
-        return jobRepository.findByActiveTrue().stream()
-                .map(jobMapper::toJobResponse)
+    public JobResponse getPublicJobById(UUID id) {
+        Job job = jobRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Job not found with id: " + id));
+        // Never expose inactive (archived/draft) jobs to anonymous visitors.
+        if (Boolean.FALSE.equals(job.getActive())) {
+            throw new EntityNotFoundException("Job not found with id: " + id);
+        }
+        return jobMapper.toJobResponse(job);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobResponse> getPublicJobs(String search, String country, Pageable pageable) {
+        return jobRepository.searchActiveJobs(
+                        escapeLike(search),
+                        country == null ? "" : country,
+                        defaultSort(pageable))
+                .map(jobMapper::toJobResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<JobCountryCount> getJobCountries() {
+        return jobRepository.countActiveByCountry().stream()
+                .map(p -> new JobCountryCount(p.getCountry(), p.getCount()))
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<JobResponse> getCompanyJobs(UUID companyId) {
+    public Page<JobResponse> getAllJobs(String search, Boolean active, Pageable pageable) {
+        return jobRepository.searchAllJobs(escapeLike(search), active, defaultSort(pageable))
+                .map(jobMapper::toJobResponse);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<JobResponse> getCompanyJobs(UUID companyId, Pageable pageable) {
         companyRepository.findById(companyId)
                 .orElseThrow(() -> new EntityNotFoundException("Company not found with id: " + companyId));
-        return jobRepository.findByCompanyId(companyId).stream()
-                .map(jobMapper::toJobResponse)
-                .toList();
+        return jobRepository.findByCompanyId(companyId, defaultSort(pageable))
+                .map(jobMapper::toJobResponse);
+    }
+
+    /** Escapes LIKE wildcards so user input is matched literally. */
+    private static String escapeLike(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    /** Newest jobs first unless the caller explicitly requested a sort. */
+    private Pageable defaultSort(Pageable pageable) {
+        if (pageable.getSort().isSorted()) {
+            return pageable;
+        }
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), Sort.by(Sort.Direction.DESC, "createdAt"));
     }
 
     /**

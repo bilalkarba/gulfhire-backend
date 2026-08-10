@@ -6,7 +6,8 @@ import com.gulfhire.chat.entity.Conversation;
 import com.gulfhire.chat.entity.Message;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 
 @Component
 public class ChatMapper {
@@ -20,6 +21,12 @@ public class ChatMapper {
                 .senderRole(message.getSender().getRole())
                 .content(message.getContent())
                 .isRead(message.getIsRead())
+                .attachmentUrl(message.getAttachmentUrl())
+                .attachmentType(message.getAttachmentType())
+                .attachmentName(message.getAttachmentName())
+                .attachmentSize(message.getAttachmentSize())
+                .deleted(message.getDeleted())
+                .editedAt(message.getEditedAt())
                 .createdAt(message.getCreatedAt())
                 .build();
     }
@@ -27,7 +34,7 @@ public class ChatMapper {
     public ConversationResponse toConversationResponse(
             Conversation conversation,
             String lastMessage,
-            LocalDateTime lastMessageAt,
+            Instant lastMessageAt,
             long unreadCount,
             String workerAvatarUrl,
             String companyLogoUrl) {
@@ -44,7 +51,13 @@ public class ChatMapper {
                 .lastMessage(lastMessage)
                 .lastMessageAt(lastMessageAt)
                 .unreadCount(unreadCount)
-                .createdAt(conversation.getCreatedAt())
+                // The conversation entity stores a naive server-local timestamp;
+                // interpret it as the server's zone so the API is always UTC.
+                // Null-guard: a freshly created conversation (@CreationTimestamp)
+                // has no createdAt until the DB flush.
+                .createdAt(conversation.getCreatedAt() == null
+                        ? null
+                        : conversation.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant())
                 .build();
     }
 }

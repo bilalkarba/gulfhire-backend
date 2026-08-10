@@ -43,6 +43,12 @@ public class User implements UserDetails {
     @Enumerated(EnumType.STRING)
     private Role role;
 
+    // Nullable so ddl-auto=update can add the column to pre-existing users
+    // tables; the app always writes a value (@Builder.Default = false).
+    @Column
+    @Builder.Default
+    private Boolean emailVerified = false;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

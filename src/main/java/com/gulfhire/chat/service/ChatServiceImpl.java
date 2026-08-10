@@ -6,14 +6,20 @@ import com.gulfhire.chat.dto.ConversationResponse;
 import com.gulfhire.chat.dto.CreateConversationRequest;
 import com.gulfhire.chat.dto.MessageResponse;
 import com.gulfhire.chat.dto.SendMessageRequest;
+import com.gulfhire.chat.dto.UpdateMessageRequest;
+import com.gulfhire.chat.entity.AttachmentType;
 import com.gulfhire.chat.entity.Conversation;
 import com.gulfhire.chat.entity.Message;
 import com.gulfhire.chat.mapper.ChatMapper;
 import com.gulfhire.chat.repository.ConversationRepository;
 import com.gulfhire.chat.repository.MessageRepository;
+import com.gulfhire.storage.util.FileTypeUtils;
 import com.gulfhire.common.constants.Role;
+import com.gulfhire.email.service.EmailService;
 import com.gulfhire.job.entity.Job;
 import com.gulfhire.job.repository.JobRepository;
+import com.gulfhire.notification.entity.NotificationType;
+import com.gulfhire.notification.service.NotificationService;
 import com.gulfhire.user.entity.User;
 import com.gulfhire.user.repository.UserRepository;
 import com.gulfhire.worker.entity.Worker;
@@ -24,6 +30,7 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
@@ -40,6 +47,8 @@ public class ChatServiceImpl implements ChatService {
     private final WorkerRepository workerRepository;
     private final JobApplicationRepository jobApplicationRepository;
     private final ChatMapper chatMapper;
+    private final NotificationService notificationService;
+    private final EmailService emailService;
 
     @Override
     public ConversationResponse createConversation(User currentUser, CreateConversationRequest request) {
@@ -129,14 +138,108 @@ public class ChatServiceImpl implements ChatService {
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
 
+        String content = request.getContent() != null ? request.getContent().trim() : "";
+        boolean hasAttachment = request.getAttachmentUrl() != null && !request.getAttachmentUrl().isBlank();
+        if (content.isBlank() && !hasAttachment) {
+            throw new IllegalArgumentException("Either message content or an attachment is required");
+        }
+
+        // Derive the attachment type from the file name when possible (it is
+        // authoritative — it matches what the upload endpoint accepted); fall
+        // back to the client-provided type only when the name has no usable
+        // extension.
+        AttachmentType attachmentType = null;
+        if (hasAttachment) {
+            attachmentType = AttachmentType
+                    .fromExtension(FileTypeUtils.getExtension(request.getAttachmentName()))
+                    .orElse(request.getAttachmentType());
+        }
+
         Message message = Message.builder()
                 .conversation(conversation)
                 .sender(sender)
-                .content(request.getContent().trim())
+                // Empty string keeps the NOT NULL column happy for attachment-only messages.
+                .content(content)
                 .isRead(false)
+                .attachmentUrl(hasAttachment ? request.getAttachmentUrl().trim() : null)
+                .attachmentType(hasAttachment ? attachmentType : null)
+                .attachmentName(hasAttachment ? request.getAttachmentName() : null)
+                .attachmentSize(hasAttachment ? request.getAttachmentSize() : null)
+                // Set explicitly — @CreationTimestamp only runs at DB flush, and the
+                // response/broadcast must never carry a null createdAt (clients would
+                // render it as epoch → "12:00 AM").
+                .createdAt(Instant.now())
                 .build();
         message = messageRepository.save(message);
+
+        // Notify the other participant about the new message.
+        User recipient = sender.getId().equals(conversation.getWorker().getId())
+                ? conversation.getCompany()
+                : conversation.getWorker();
+        String previewText = content.isBlank()
+                ? "Sent an attachment"
+                + (request.getAttachmentName() != null ? ": " + request.getAttachmentName() : "")
+                : preview(content);
+        notificationService.createNotification(
+                recipient,
+                "New message",
+                sender.getFullName() + ": " + previewText,
+                NotificationType.NEW_MESSAGE);
+        emailService.sendNewMessageEmail(
+                recipient.getEmail(),
+                recipient.getFullName(),
+                sender.getFullName(),
+                previewText);
+
         return chatMapper.toMessageResponse(message);
+    }
+
+    @Override
+    public MessageResponse editMessage(UUID messageId, UUID userId, UpdateMessageRequest request) {
+        Message message = getOwnedMessage(messageId, userId);
+        if (Boolean.TRUE.equals(message.getDeleted())) {
+            throw new IllegalStateException("Cannot edit a deleted message");
+        }
+        message.setContent(request.getContent().trim());
+        message.setEditedAt(Instant.now());
+        message = messageRepository.save(message);
+        return chatMapper.toMessageResponse(message);
+    }
+
+    @Override
+    public MessageResponse deleteMessage(UUID messageId, UUID userId) {
+        Message message = getOwnedMessage(messageId, userId);
+        if (Boolean.TRUE.equals(message.getDeleted())) {
+            // Idempotent: a client retry after a lost response is not an error.
+            return chatMapper.toMessageResponse(message);
+        }
+        message.setDeleted(true);
+        // Clear the content but keep the row (and attachment metadata) for history.
+        message.setContent("");
+        message = messageRepository.save(message);
+        return chatMapper.toMessageResponse(message);
+    }
+
+    /**
+     * Loads a message and enforces the rules to manage it: the user must be a
+     * participant of the conversation and the sender of the message.
+     */
+    private Message getOwnedMessage(UUID messageId, UUID userId) {
+        Message message = messageRepository.findById(messageId)
+                .orElseThrow(() -> new EntityNotFoundException("Message not found with id: " + messageId));
+        if (!isParticipant(message.getConversation().getId(), userId)) {
+            throw new AccessDeniedException("You are not a participant of this conversation");
+        }
+        if (!message.getSender().getId().equals(userId)) {
+            throw new AccessDeniedException("You can only manage your own messages");
+        }
+        return message;
+    }
+
+    /** Trims the message body for the email preview (keeps the subject short). */
+    private String preview(String content) {
+        String trimmed = content == null ? "" : content.strip();
+        return trimmed.length() <= 120 ? trimmed : trimmed.substring(0, 120) + "…";
     }
 
     @Override
@@ -174,10 +277,17 @@ public class ChatServiceImpl implements ChatService {
 
     private ConversationResponse toConversationResponse(Conversation conversation, UUID viewerId) {
         String lastMessage = null;
-        java.time.LocalDateTime lastMessageAt = null;
+        Instant lastMessageAt = null;
         Message last = messageRepository.findTopByConversationIdOrderByCreatedAtDesc(conversation.getId()).orElse(null);
         if (last != null) {
-            lastMessage = last.getContent();
+            if (Boolean.TRUE.equals(last.getDeleted())) {
+                lastMessage = "This message was deleted";
+            } else if ((last.getContent() == null || last.getContent().isBlank())
+                    && last.getAttachmentUrl() != null) {
+                lastMessage = "[Attachment]";
+            } else {
+                lastMessage = last.getContent();
+            }
             lastMessageAt = last.getCreatedAt();
         }
 

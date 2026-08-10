@@ -1,5 +1,7 @@
 package com.gulfhire.common.exception;
 
+import com.gulfhire.auth.exception.TokenRefreshException;
+import com.gulfhire.auth.token.TokenInvalidException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +26,16 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(TokenRefreshException.class)
+    public ResponseEntity<Map<String, Object>> handleTokenRefresh(TokenRefreshException ex) {
+        return buildErrorResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    @ExceptionHandler(TokenInvalidException.class)
+    public ResponseEntity<Map<String, Object>> handleTokenInvalid(TokenInvalidException ex) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

@@ -45,4 +45,7 @@ public class JobUpdateRequest {
 
     @NotNull(message = "Active is required")
     private Boolean active;
+
+    /** Optional; when omitted the current expiry is kept. */
+    private java.time.LocalDateTime expiresAt;
 }

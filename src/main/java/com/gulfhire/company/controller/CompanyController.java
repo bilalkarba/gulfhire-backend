@@ -10,6 +10,8 @@ import com.gulfhire.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -48,10 +50,10 @@ public class CompanyController {
 
     @GetMapping("/me/jobs")
     @PreAuthorize("hasRole('COMPANY')")
-    public ResponseEntity<List<JobResponse>> getMyJobs(@AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<Page<JobResponse>> getMyJobs(@AuthenticationPrincipal UserDetails userDetails, Pageable pageable) {
         User user = getCurrentUser(userDetails);
         UUID companyId = companyService.getCompanyByUserId(user.getId()).getId();
-        return ResponseEntity.ok(jobService.getCompanyJobs(companyId));
+        return ResponseEntity.ok(jobService.getCompanyJobs(companyId, pageable));
     }
 
     @GetMapping("/{id}")

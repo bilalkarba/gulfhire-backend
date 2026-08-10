@@ -26,5 +26,6 @@ public class JobResponse {
     private ContractType contractType;
     private Integer requiredExperience;
     private Boolean active;
+    private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
 }

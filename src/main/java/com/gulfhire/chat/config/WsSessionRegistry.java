@@ -18,9 +18,4 @@ public class WsSessionRegistry {
     public UUID remove(String sessionId) {
         return sessions.remove(sessionId);
     }
-
-    /** True when the user still has at least one open WebSocket session. */
-    public boolean hasSessionFor(UUID userId) {
-        return sessions.containsValue(userId);
-    }
 }

@@ -22,6 +22,7 @@ public class JobMapper {
                 .contractType(job.getContractType())
                 .requiredExperience(job.getRequiredExperience())
                 .active(job.getActive())
+                .expiresAt(job.getExpiresAt())
                 .createdAt(job.getCreatedAt())
                 .build();
     }
@@ -35,6 +36,7 @@ public class JobMapper {
                 .salary(request.getSalary())
                 .contractType(request.getContractType())
                 .requiredExperience(request.getRequiredExperience())
+                .expiresAt(request.getExpiresAt())
                 .build();
     }
 
@@ -47,5 +49,8 @@ public class JobMapper {
         job.setContractType(request.getContractType());
         job.setRequiredExperience(request.getRequiredExperience());
         job.setActive(request.getActive());
+        if (request.getExpiresAt() != null) {
+            job.setExpiresAt(request.getExpiresAt());
+        }
     }
 }

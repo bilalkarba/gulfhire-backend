@@ -22,14 +22,16 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
 
     @Query("""
             select count(m) from Message m
-            where m.conversation.id = :conversationId and m.isRead = false and m.sender.id <> :userId
+            where m.conversation.id = :conversationId and m.isRead = false
+              and m.sender.id <> :userId and m.deleted = false
             """)
     long countUnread(@Param("conversationId") UUID conversationId, @Param("userId") UUID userId);
 
     @Modifying
     @Query("""
             update Message m set m.isRead = true
-            where m.conversation.id = :conversationId and m.sender.id <> :userId and m.isRead = false
+            where m.conversation.id = :conversationId and m.sender.id <> :userId
+              and m.isRead = false and m.deleted = false
             """)
     int markAllAsRead(@Param("conversationId") UUID conversationId, @Param("userId") UUID userId);
 }
