@@ -24,6 +24,8 @@ public class WorkerMapper {
                 .profilePictureUrl(worker.getProfilePictureUrl())
                 .cvUrl(worker.getCvUrl())
                 .videoCvUrl(worker.getVideoCvUrl())
+                .skills(worker.getSkills())
+                .education(worker.getEducation())
                 .verified(worker.getVerified())
                 .createdAt(worker.getCreatedAt())
                 .updatedAt(worker.getUpdatedAt())
@@ -67,6 +69,12 @@ public class WorkerMapper {
         }
         if (request.getVideoCvUrl() != null) {
             worker.setVideoCvUrl(request.getVideoCvUrl());
+        }
+        if (request.getSkills() != null) {
+            worker.setSkills(request.getSkills());
+        }
+        if (request.getEducation() != null) {
+            worker.setEducation(request.getEducation());
         }
     }
 }

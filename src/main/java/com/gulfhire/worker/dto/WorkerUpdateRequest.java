@@ -33,4 +33,10 @@ public class WorkerUpdateRequest {
     private String cvUrl;
 
     private String videoCvUrl;
+
+    @Size(max = 2000, message = "Skills must not exceed 2000 characters")
+    private String skills;
+
+    @Size(max = 2000, message = "Education must not exceed 2000 characters")
+    private String education;
 }

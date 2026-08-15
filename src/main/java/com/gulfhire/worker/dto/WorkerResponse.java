@@ -27,6 +27,8 @@ public class WorkerResponse {
     private String profilePictureUrl;
     private String cvUrl;
     private String videoCvUrl;
+    private String skills;
+    private String education;
     private Boolean verified;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

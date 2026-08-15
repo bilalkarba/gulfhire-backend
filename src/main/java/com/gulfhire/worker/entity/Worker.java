@@ -55,6 +55,14 @@ public class Worker {
 
     private String videoCvPublicId;
 
+    /** Free-form skills list (e.g. "Java, Spring Boot, PostgreSQL"). */
+    @Column(columnDefinition = "TEXT")
+    private String skills;
+
+    /** Free-form education history (e.g. "BSc Computer Science, 2020"). */
+    @Column(columnDefinition = "TEXT")
+    private String education;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean verified = false;

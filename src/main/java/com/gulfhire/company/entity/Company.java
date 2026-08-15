@@ -41,6 +41,8 @@ public class Company {
 
     private String logoUrl;
 
+    private String logoPublicId;
+
     @Column(nullable = false)
     @Builder.Default
     private Boolean verified = false;
