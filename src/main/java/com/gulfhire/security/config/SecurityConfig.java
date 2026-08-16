@@ -63,7 +63,7 @@ public CorsConfigurationSource corsConfigurationSource() {
     // Flutter Web localhost:50902
     // Angular localhost:4200
     configuration.setAllowedOriginPatterns(List.of(
-            "http://localhost:*",
+            "https://gulfhireai.vercel.app",
             "http://127.0.0.1:*"
     ));
 
